@@ -40,14 +40,14 @@ def make_face(imgIn, imgOut, faceIdx):
         uf = 0.5 * pano_width * (theta + pi) / pi
         vf = 0.5 * pano_width * (pi/2 - phi) / pi
 
-        ### TODO: optimize bilinear interpolation like crazy, generation of high res tiles should be faster
+        # TODO: optimize bilinear interpolation like crazy, generation of high res tiles should be faster
 
         ui = floor(uf)
         vi = floor(vf)
-        u2 = ui+1
-        v2 = vi+1
-        mu = uf-ui
-        nu = vf-vi
+        u2 = ui + 1
+        v2 = vi + 1
+        mu = uf - ui
+        nu = vf - vi
 
         A = inPix[ui % pano_width, clip(vi, 0, pano_height - 1)]
         B = inPix[u2 % pano_width, clip(vi, 0, pano_height - 1)]
