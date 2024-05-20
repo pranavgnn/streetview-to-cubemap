@@ -3,7 +3,7 @@ import requests
 from PIL import Image, ImageChops
 from streetview import search_panoramas
 from io import BytesIO
-# from cubemap import equirectangular_to_cubemap
+from cubemap import equirectangular_to_cubemap
 
 latitude, longitude = (51.500936,-0.1253679)
 
@@ -17,19 +17,18 @@ def get_wh_from_zoom(zoom):
 
 def get_bytes(pano_id, zoom, x, y):
     return requests.get(
-        "https://cbk0.google.com/cbk"
-        f"?output=tile&panoid={pano_id}&zoom={zoom}&x={x}&y={y}"
+        f"https://cbk0.google.com/cbk?output=tile&panoid={pano_id}&zoom={zoom}&x={x}&y={y}"
     ).content
 
 def get_tiles(pano_id, zoom):
     width, height = get_wh_from_zoom(zoom)
 
-    # crop_width, crop_height = int(width * tile_width - tile_width * (1 - 1 / width)), 0 
-    crop_width, crop_height = width * tile_width - horizontal_clip[zoom], 0 
+    crop_width = width * tile_width - horizontal_clip[zoom]
+    crop_height = 0
 
     output = Image.new("RGBA", (width * tile_width, height * tile_height), (255, 0, 0))
 
-    tiles = []
+    # tiles = []
 
     for x, y in itertools.product(range(width), range(height)):
         bytes = get_bytes(pano_id, zoom, x, y)
@@ -47,7 +46,7 @@ def get_tiles(pano_id, zoom):
             crop_height += h
 
         output.paste(img, (x * tile_width, y * tile_height))
-        tiles.append(img)
+        # tiles.append(img)
 
     # for i in range(0, tile_width):
     #     shifted_img = Image.new("RGB", (tile_width, tile_height))
@@ -60,7 +59,9 @@ def get_tiles(pano_id, zoom):
     # tiles[-height].save(f"diffs/_end.jpg")
 
     output = output.crop((0, 0, crop_width, crop_height))
-    output.save(f"output zoom {zoom}.png")
+    output.save(f"{latitude},{longitude} zoom-{zoom}.png")
+
+    return output
 
     # equirectangular_to_cubemap(output)
 
@@ -69,9 +70,9 @@ panoid = panoids[0].pano_id
 
 print(panoid)
 
-get_tiles(panoid, 2)
+output = get_tiles(panoid, 2)
 
-# print(get_wh_from_zoom(4))
+equirectangular_to_cubemap(output, 512, latitude, longitude)
 
 #zoom 1 - x = 2; 
 #zoom 2 - x = 4; 128 repeat

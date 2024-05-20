@@ -1,67 +1,91 @@
-import numpy as np
 from PIL import Image
-from scipy.ndimage import map_coordinates
-from tqdm import tqdm
+from os import path, mkdir
+from math import pi, atan2, hypot, floor
+from numpy import clip
+from threading import Thread
 
-def map_to_sphere(x, y, z, W, H, f, yaw_radian, pitch_radian):
+def get_xyz(i, j, face_id, size):
 
-    theta = np.arccos(z / np.sqrt(x ** 2 + y ** 2 + z ** 2))
-    phi = np.arctan2(y, x)
+    a = 2.0 * float(i) / size
+    b = 2.0 * float(j) / size
 
-    # Apply rotation transformations here
-    theta_prime = np.arccos(np.sin(theta) * np.sin(phi) * np.sin(pitch_radian) +
-                            np.cos(theta) * np.cos(pitch_radian))
+    if face_id == 0: # back
+        (x,y,z) = (-1.0, 1.0 - a, 1.0 - b)
+    elif face_id == 1: # left
+        (x,y,z) = (a - 1.0, -1.0, 1.0 - b)
+    elif face_id == 2: # front
+        (x,y,z) = (1.0, a - 1.0, 1.0 - b)
+    elif face_id == 3: # right
+        (x,y,z) = (1.0 - a, 1.0, 1.0 - b)
+    elif face_id == 4: # top
+        (x,y,z) = (b - 1.0, a - 1.0, 1.0)
+    elif face_id == 5: # bottom
+        (x,y,z) = (1.0 - b, a - 1.0, -1.0)
 
-    phi_prime = np.arctan2(np.sin(theta) * np.sin(phi) * np.cos(pitch_radian) -
-                           np.cos(theta) * np.sin(pitch_radian),
-                           np.sin(theta) * np.cos(phi))
-    phi_prime += yaw_radian
-    phi_prime = phi_prime % (2 * np.pi)
+    return (x, y, z)
 
-    return theta_prime.flatten(), phi_prime.flatten()
+def make_face(imgIn, imgOut, faceIdx):
+    inSize = imgIn.size
+    outSize = imgOut.size
+    inPix = imgIn.load()
+    outPix = imgOut.load()
+    faceSize = outSize[0]
 
+    for xOut in range(faceSize):
+        for yOut in range(faceSize):
+            (x,y,z) = get_xyz(xOut, yOut, faceIdx, faceSize)
+            theta = atan2(y,x)
+            r = hypot(x,y)
+            phi = atan2(z,r)
 
-def interpolate_color(coords, img, method='bilinear'):
-    order = {'nearest': 0, 'bilinear': 1, 'bicubic': 3}.get(method, 1)
-    red = map_coordinates(img[:, :, 0], coords, order=order, mode='reflect')
-    green = map_coordinates(img[:, :, 1], coords, order=order, mode='reflect')
-    blue = map_coordinates(img[:, :, 2], coords, order=order, mode='reflect')
-    return np.stack((red, green, blue), axis=-1)
+            uf = 0.5 * inSize[0] * (theta + pi) / pi
+            vf = 0.5 * inSize[0] * (pi/2 - phi) / pi
 
+            # Use bilinear interpolation between the four surrounding pixels
+            ui = floor(uf)  # coord of pixel to bottom left
+            vi = floor(vf)
+            u2 = ui+1       # coords of pixel to top right
+            v2 = vi+1
+            mu = uf-ui      # fraction of way across pixel
+            nu = vf-vi
 
-def panorama_to_plane(panorama_path, FOV, output_size, yaw, pitch):
-    panorama = Image.open(panorama_path).convert('RGB')
-    pano_width, pano_height = panorama.size
-    pano_array = np.array(panorama)
-    yaw_radian = np.radians(yaw)
-    pitch_radian = np.radians(pitch)
+            # Pixel values of four corners
+            A = inPix[ui % inSize[0], clip(vi, 0, inSize[1]-1)]
+            B = inPix[u2 % inSize[0], clip(vi, 0, inSize[1]-1)]
+            C = inPix[ui % inSize[0], clip(v2, 0, inSize[1]-1)]
+            D = inPix[u2 % inSize[0], clip(v2, 0, inSize[1]-1)]
 
-    W, H = output_size
-    f = (0.5 * W) / np.tan(np.radians(FOV) / 2)
+            # interpolate
+            (r,g,b) = (
+              A[0]*(1-mu)*(1-nu) + B[0]*(mu)*(1-nu) + C[0]*(1-mu)*nu+D[0]*mu*nu,
+              A[1]*(1-mu)*(1-nu) + B[1]*(mu)*(1-nu) + C[1]*(1-mu)*nu+D[1]*mu*nu,
+              A[2]*(1-mu)*(1-nu) + B[2]*(mu)*(1-nu) + C[2]*(1-mu)*nu+D[2]*mu*nu )
 
-    u, v = np.meshgrid(np.arange(W), np.arange(H), indexing='xy')
+            outPix[xOut, yOut] = (int(round(r)), int(round(g)), int(round(b)))
 
-    x = u - W / 2
-    y = H / 2 - v
-    z = f
+FACE_NAMES = {
+  0: 'back',
+  1: 'left',
+  2: 'front',
+  3: 'right',
+  4: 'top',
+  5: 'bottom'
+}
 
-    theta, phi = map_to_sphere(x, y, z, yaw_radian, pitch_radian)
+def get_folder_path(lat, lon):
+    return path.abspath(f"{lat},{lon}")
 
-    U = phi * pano_width / (2 * np.pi)
-    V = theta * pano_height / np.pi
+def equirectangular_to_cubemap(panorama, size, lat, lon):
 
-    U, V = U.flatten(), V.flatten()
-    coords = np.vstack((V, U))
+    def save_face(face):
+        output = Image.new("RGBA", (size, size))
+        make_face(panorama, output, face)
+        output.save(f"{get_folder_path(lat, lon)}\\{FACE_NAMES[face]}.png")
 
-    colors = interpolate_color(coords, pano_array)
-    output_image = Image.fromarray(colors.reshape((H, W, 3)).astype('uint8'), 'RGB')
+    try:
+        mkdir(get_folder_path(lat, lon))
+    except:
+        print("Directory creation failed")
 
-    return output_image
-
-
-
-for deg in tqdm(np.arange(0, 360, 0.25)):
-    output_image = panorama_to_plane('panorama.png', 90, (600, 600), deg, 90)
-    writer.append_data(np.array(output_image))
-
-writer.close()
+    for face in range(6):
+        Thread(target=save_face, args=(face,)).start()
