@@ -96,7 +96,7 @@ panoids = search_panoramas(lat=latitude, lon=longitude)
 panoid = panoids[0].pano_id
 
 output = make_panorama(panoid, zoom)
-equirectangular_to_cubemap(output, 256, latitude, longitude, zoom)
+equirectangular_to_cubemap(output, 512, latitude, longitude, zoom)
 
 # https://jaxry.github.io/panorama-to-cubemap/
 # https://matheowis.github.io/HDRI-to-CubeMap/

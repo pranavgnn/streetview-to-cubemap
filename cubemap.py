@@ -69,6 +69,8 @@ def equirectangular_to_cubemap(panorama, size, lat, lon, zoom):
     folder_name = f"{lat},{lon} zoom-{zoom}"
     folder_path = path.abspath(folder_name)
 
+    threads = []
+
     def save_face(face):
         output = Image.new("RGB", (size, size))
         make_face(panorama, output, face)
@@ -80,4 +82,10 @@ def equirectangular_to_cubemap(panorama, size, lat, lon, zoom):
         print("Directory creation failed")
 
     for face in range(6):
-        Thread(target=save_face, args=(face,)).start()
+        threads.append(Thread(target=save_face, args=(face,)))
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
