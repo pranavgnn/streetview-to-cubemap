@@ -5,6 +5,7 @@ from streetview import search_panoramas
 from io import BytesIO
 from cubemap import equirectangular_to_cubemap
 
+zoom = 2
 latitude, longitude = (51.500936,-0.1253679)
 
 tile_width, tile_height = (512, 512)
@@ -20,7 +21,7 @@ def get_bytes(pano_id, zoom, x, y):
         f"https://cbk0.google.com/cbk?output=tile&panoid={pano_id}&zoom={zoom}&x={x}&y={y}"
     ).content
 
-def get_tiles(pano_id, zoom):
+def make_panorama(pano_id, zoom):
     width, height = get_wh_from_zoom(zoom)
 
     crop_width = width * tile_width - horizontal_clip[zoom]
@@ -63,22 +64,12 @@ def get_tiles(pano_id, zoom):
 
     return output
 
-    # equirectangular_to_cubemap(output)
-
 panoids = search_panoramas(lat=latitude, lon=longitude)
 panoid = panoids[0].pano_id
 
-print(panoid)
+output = make_panorama(panoid, zoom)
 
-output = get_tiles(panoid, 2)
-
-equirectangular_to_cubemap(output, 512, latitude, longitude)
-
-#zoom 1 - x = 2; 
-#zoom 2 - x = 4; 128 repeat
-#zoom 3 - x = 7;
-#zoom 4 - x = 13;
-#zoom 5 - x = 26
+equirectangular_to_cubemap(output, 512, latitude, longitude, zoom)
 
 # https://jaxry.github.io/panorama-to-cubemap/
 # https://matheowis.github.io/HDRI-to-CubeMap/
