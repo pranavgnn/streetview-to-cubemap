@@ -4,7 +4,7 @@ tempCodeRunnerFile.*
 __pycache__
 
 diffs
-zoom-*
+* zoom-*
 
 *.png
 *.jpg
