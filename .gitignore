@@ -1,0 +1,10 @@
+.vscode
+tempCodeRunnerFile.*
+
+__pycache__
+
+diffs
+zoom-*
+
+*.png
+*.jpg
